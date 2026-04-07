@@ -3,17 +3,17 @@ ICT Algorithm Phase Detection
 -------------------------------
 Identifies which phase the market is in on each timeframe:
 
-  PHASE A â Accumulation
-  PHASE B â Manipulation / Judas Swing  â FULL-SIZE ENTRY ONLY
-  PHASE C â Expansion
-  PHASE D â Re-accumulation / Re-distribution  â 50% SIZE MAX
+  PHASE A → Accumulation
+  PHASE B → Manipulation / Judas Swing  → FULL-SIZE ENTRY ONLY
+  PHASE C → Expansion                   → SCALP ENTRY
+  PHASE D → Re-accumulation / Re-distribution  → 50% SIZE MAX
 
 Output structure per timeframe:
   {
     "phase": "A" | "B" | "C" | "D" | "UNKNOWN",
     "bias": "bullish" | "bearish" | "ranging",
     "evidence": ["..."],
-    "entry_type": "PHASE_B" | "PHASE_D" | "WAIT",
+    "entry_type": "PHASE_B" | "PHASE_C" | "PHASE_D" | "WAIT",
     "dol": float | None,             # direction of liquidity
     "dol_type": "BSL" | "SSL" | None,
   }
@@ -27,13 +27,13 @@ import pandas as pd
 log = logging.getLogger(__name__)
 
 
-# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# ──────────────────────────────────────────────────────────────
 #  Main Phase Detector
-# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# ──────────────────────────────────────────────────────────────
 
 def detect_phase(df: pd.DataFrame, timeframe: str) -> dict:
     """
-    Analyse a DataFrame (oldest â newest) and return phase info dict.
+    Analyse a DataFrame (oldest → newest) and return phase info dict.
     Uses the last 50 candles for pattern detection.
     """
     if df.empty or len(df) < 20:
@@ -60,9 +60,9 @@ def detect_phase(df: pd.DataFrame, timeframe: str) -> dict:
     return result
 
 
-# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# ──────────────────────────────────────────────────────────────
 #  Bias Detection
-# ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+# ──────────────────────────────────────────────────────────────
 
 def _detect_bias(df: pd.DataFrame) -> str:
     if len(df) < 10:
@@ -109,7 +109,7 @@ def _classify_phase(df: pd.DataFrame, bias: str) -> tuple[str, list[str]]:
     if phase_d:
         evidence.extend(d_ev)
         return "D", evidence
-    evidence.append("No clear phase pattern â price action ambiguous")
+    evidence.append("No clear phase pattern — price action ambiguous")
     return "UNKNOWN", evidence
 
 
@@ -205,7 +205,7 @@ def _check_phase_d(df, closes, highs, lows, bias: str) -> tuple[bool, list[str]]
         evidence.append(f"Price bouncing from {last5.min():.2f} into supply FVGs")
     else:
         return False, evidence
-    evidence.append("Phase D: re-accumulation / re-distribution â  50% size max")
+    evidence.append("Phase D: re-accumulation / re-distribution → 50% size max")
     return True, evidence
 
 
@@ -231,6 +231,8 @@ def _determine_entry_type(phase: str) -> str:
         return "PHASE_B"
     elif phase == "D":
         return "PHASE_D"
+    elif phase == "C":
+        return "PHASE_C"  # Scalp entry on momentum expansion
     else:
         return "WAIT"
 
@@ -257,4 +259,3 @@ def determine_mode(swing_phase: dict, intraday_phase: dict) -> str:
     elif intra_entry != "WAIT":
         return "INTRADAY"
     return "PENDING"
-    
