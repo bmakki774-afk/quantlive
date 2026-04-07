@@ -35,7 +35,7 @@ log = logging.getLogger("quantlive.main")
 def scheduled_pipeline():
     """Wrapper called by APScheduler."""
     try:
-        run_pipeline(silent_no_trade=False)
+        run_pipeline(silent_no_trade=True)
     except Exception as exc:
         log.error(f"Unhandled error in pipeline: {exc}", exc_info=True)
 
@@ -52,7 +52,7 @@ def startup():
     log.info("  QuantLive Signal Platform â Starting Up")
     log.info(f"  Symbol:  {config.SYMBOL}")
     log.info(f"  Account: ${config.ACCOUNT_SIZE:,.0f}")
-    log.info(f"  Schedule: :00 and :30 past every hour (UTC)")
+    log.info(f"  Schedule: :00 :15 :30 :45 every hour (UTC) — signal-only alerts")
     log.info("=" * 60)
 
     # Initialise database tables
@@ -84,7 +84,7 @@ def main():
     # Fire at :00 and :30 of every hour
     scheduler.add_job(
         scheduled_pipeline,
-        trigger=CronTrigger(minute="0,30", timezone="UTC"),
+        trigger=CronTrigger(minute="0,15,30,45", timezone="UTC"),
         id="pipeline_job",
         name="ICT Signal Pipeline",
         max_instances=1,
