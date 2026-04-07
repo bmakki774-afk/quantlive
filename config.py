@@ -11,6 +11,81 @@ load_dotenv()
 TWELVE_DATA_API_KEY: str = os.getenv("TWELVE_DATA_API_KEY", "")
 SYMBOL: str = os.getenv("SYMBOL", "XAU/USD")
 TIMEFRAMES: list[str] = ["15min", "1h", "4h", "1day"]
+CANDLE_LOOKBACK: int = int(os.getenv("CANDLE_LOOKBACK", "200"))
+
+# ─── Database ────────────────────────────────────────────────
+DATABASE_URL: str = os.getenv("DATABASE_URL", "")
+
+# ─── Telegram ──────────────────────────────────────────────
+TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
+
+# ─── Trading Account ─────────────────────────────────────────
+ACCOUNT_SIZE: float = float(os.getenv("ACCOUNT_SIZE", "2500"))
+MAX_RISK_PHASE_B: float = float(os.getenv("MAX_RISK_PHASE_B", "0.02"))   # 2%
+MAX_RISK_PHASE_D: float = float(os.getenv("MAX_RISK_PHASE_D", "0.01"))   # 1%
+MAX_COMBINED_RISK: float = float(os.getenv("MAX_COMBINED_RISK", "0.025")) # 2.5%
+
+# ─── ICT Kill Zones (UTC) ────────────────────────────────────────
+# London Kill Zone: 02:00–08:00 UTC (covers pre-London + London open)
+# New York Kill Zone: 12:00–17:00 UTC (covers NY open + overlap)
+LONDON_KZ_START: int = 2
+LONDON_KZ_END: int = 8
+NEW_YORK_KZ_START: int = 12
+NEW_YORK_KZ_END: int = 17
+
+# ─── Scoring Thresholds (per ICT prompt) ────────────────────────────
+# Prompt rule: FVG score 7+ = trend-following trade
+#              FVG score 9+ = counter-trend trade allowed
+SWING_SCORE_THRESHOLD: int = 7        # prompt: 7+ tradeable (trend)
+INTRADAY_SCORE_THRESHOLD: int = 7     # prompt: 7+ tradeable (trend)
+COUNTER_TREND_SCORE_THRESHOLD: int = 9  # prompt: 9+ CT threshold
+
+# ─── Risk Gate ──────────────────────────────────────────────────────
+# Prompt rule: 10 gates total.
+#   All 10 pass = EXECUTE full size
+#   1 fails     = REDUCE 25%
+#   2 fail      = REDUCE 50%
+#   3+ fail     = NO TRADE (min 7 must pass)
+MIN_GATES_PASSED: int = 8            # 3 failures max allowed
+# Prompt rule: TP2 MUST exceed 1:3 R:R
+MIN_RR_INTRADAY: float = 3.0         # restored to prompt requirement
+MIN_RR_SWING: float = 3.0            # same for swing
+
+# ─── Stop Loss Minimums (points) ──────────────────────────────────────────
+SL_MIN_PHASE_B_INTRADAY: float = 60.0
+SL_MIN_PHASE_D_INTRADAY: float = 100.0
+SL_MIN_PHASE_B_SWING: float = 120.0
+SL_MIN_PHASE_D_SWING: float = 180.0
+BSL_SSL_BUFFER: float = 15.0
+
+# ─── Entry Sweep Minimums (points) ────────────────────────────────────────────
+SWEEP_MIN_PHASE_B_INTRADAY: float = 5.0
+SWEEP_MIN_PHASE_D_INTRADAY: float = 10.0
+SWEEP_MIN_PHASE_B_SWING: float = 15.0
+SWEEP_MIN_PHASE_D_SWING: float = 25.0
+
+# ─── Scheduler ──────────────────────────────────────────────────────────
+PIPELINE_CRON_MINUTES: list[int] = [0, 15, 30, 45]
+
+# ─── Swing High/Low Detection ────────────────────────────────────────────
+SWING_LOOKBACK: int = int(os.getenv("SWING_LOOKBACK", "10"))
+
+# ─── Logging ────────────────────────────────────────────────────────────
+LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+"""
+QuantLive Signal Platform — Configuration
+All settings pulled from environment variables.
+"""
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# ─── Data Source ────────────────────────────────────────────
+TWELVE_DATA_API_KEY: str = os.getenv("TWELVE_DATA_API_KEY", "")
+SYMBOL: str = os.getenv("SYMBOL", "XAU/USD")
+TIMEFRAMES: list[str] = ["15min", "1h", "4h", "1day"]
 CANDLE_LOOKBACK: int = int(os.getenv("CANDLE_LOOKBACK", "200"))  # candles per TF
 
 # ─── Database ────────────────────────────────────────────────
