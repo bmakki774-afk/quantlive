@@ -35,7 +35,7 @@ log = logging.getLogger("quantlive.main")
 def scheduled_pipeline():
     """Wrapper called by APScheduler."""
     try:
-        run_pipeline(silent_no_trade=True)
+        run_pipeline(silent_no_trade=False)
     except Exception as exc:
         log.error(f"Unhandled error in pipeline: {exc}", exc_info=True)
 
@@ -91,10 +91,10 @@ def main():
         coalesce=True,
     )
 
-    # Heartbeat every hour at :05
+    # Heartbeat every 30 min (:00 and :30)
     scheduler.add_job(
         hourly_heartbeat,
-        trigger=CronTrigger(minute="5", timezone="UTC"),
+        trigger=CronTrigger(minute="0,30", timezone="UTC"),
         id="heartbeat_job",
         name="Telegram Heartbeat",
         max_instances=1,
