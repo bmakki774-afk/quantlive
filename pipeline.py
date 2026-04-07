@@ -1,6 +1,134 @@
 """
 Main Pipeline Orchestrator
 ----------------------------
+Called by the scheduler every :00 :15 :30 :45.
+
+Flow:
+  1. Fetch candles (all timeframes)
+  2. Get current price
+  3. Run signal generator
+  4. Quality gate check
+  5. Deduplication check (no repeat alert within cooldown)
+  6. Save to DB
+  7. Send Telegram alert if verdict != NO_TRADE
+"""
+import logging
+from datetime import datetime, timezone
+
+import config
+from data.fetcher import TwelveDataFetcher
+from signals.generator import generate_signal
+from db.store import save_signal, mark_alert_sent, get_strategy_id, is_duplicate_signal
+from alerts.telegram import send_signal_alert, send_no_trade_summary
+
+log = logging.getLogger(__name__)
+
+
+def run_pipeline(silent_no_trade: bool = True) -> dict | None:
+    """
+    Execute one full pipeline run.
+    silent_no_trade: if True, don't send Telegram for NO_TRADE outcomes.
+    """
+    now = datetime.now(timezone.utc)
+    log.info(f"--- Pipeline run starting | {now.strftime('%Y-%m-%d %H:%M UTC')} ---")
+
+    # -- 1. Fetch candles -----------------------------------------------------
+    try:
+        fetcher = TwelveDataFetcher()
+        candles = fetcher.fetch_all_timeframes(persist=True)
+        current_price = fetcher.get_current_price()
+        session = fetcher.get_current_session()
+    except Exception as exc:
+        log.error(f"Data fetch failed: {exc}")
+        return None
+
+    if current_price is None:
+        log.warning("Could not obtain current price. Skipping pipeline run.")
+        return None
+
+    log.info(f"Current price: {current_price:.2f} | Session: {session}")
+
+    # -- 2. Build extra context -----------------------------------------------
+    extra_context = {
+        "macro_bias":        "ranging",
+        "news_within_2h":    False,
+        "news_within_48h":   False,
+        "ceasefire_risk":    False,
+        "nfp_fomc_within_48h": False,
+    }
+
+    # -- 3. Generate signal ---------------------------------------------------
+    try:
+        signal = generate_signal(
+            candles=candles,
+            current_price=current_price,
+            account_size=config.ACCOUNT_SIZE,
+            extra_context=extra_context,
+        )
+    except Exception as exc:
+        log.error(f"Signal generation error: {exc}", exc_info=True)
+        return None
+
+    if signal is None:
+        log.info("No valid signal this run.")
+        if not silent_no_trade:
+            send_no_trade_summary("No qualifying ICT setup found.")
+        return None
+
+    # -- 4. Quality gate check ------------------------------------------------
+    verdict = signal.get("verdict", "NO_TRADE")
+    if verdict == "NO_TRADE":
+        log.info(f"Signal generated but verdict = NO_TRADE. Not alerting.")
+        if not silent_no_trade:
+            send_no_trade_summary(f"Signal blocked at quality gate ({signal.get('gates_passed', 0)}/16 gates).")
+        return None
+
+    # -- 5. Deduplication check -----------------------------------------------
+    direction = signal.get("direction", "")
+    mode = signal.get("mode", "INTRADAY")
+    cooldown_hours = 4 if "INTRADAY" in mode else 8
+    try:
+        if is_duplicate_signal(direction, mode, hours=cooldown_hours):
+            log.info(
+                f"Duplicate signal skipped: {direction} {mode} already sent "
+                f"within last {cooldown_hours}h. Waiting for new setup."
+            )
+            return None
+    except Exception as exc:
+        log.warning(f"Dedup check error (continuing): {exc}")
+
+    # -- 6. Save to database --------------------------------------------------
+    try:
+        signal_id = save_signal(signal)
+    except Exception as exc:
+        log.error(f"DB save failed: {exc}", exc_info=True)
+        signal_id = 0
+
+    # -- 7. Send Telegram alert -----------------------------------------------
+    try:
+        sent = send_signal_alert(signal, signal_id)
+        if sent and signal_id > 0:
+            mark_alert_sent(signal_id)
+    except Exception as exc:
+        log.error(f"Telegram alert failed: {exc}")
+
+    log.info(f"--- Pipeline run complete | Signal #{signal_id} | {verdict} ---")
+    return signal
+
+
+if __name__ == "__main__":
+    import sys
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    result = run_pipeline(silent_no_trade=False)
+    if result:
+        print(f"\nSignal generated: {result['direction']} | Verdict: {result['verdict']}")
+    else:
+        print("\nNo trade signal generated this run.")
+    sys.exit(0 if result else 1)
+"""
+Main Pipeline Orchestrator
+----------------------------
 Called by the scheduler every :00 and :30.
 
 Flow:
